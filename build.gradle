@@ -1,7 +1,6 @@
 apply plugin: "java"
 apply plugin: "idea"
-apply plugin: 'maven'
-apply plugin: 'signing'
+apply plugin: "maven-publish" // New plugin
 
 sourceCompatibility = 1.8
 
@@ -10,9 +9,9 @@ repositories {
 }
 
 dependencies {
-	implementation "com.google.code.gson:gson:2.8.9"
+	implementation "com.google.code.gson:gson:2.11.0"
 	implementation "org.apache.httpcomponents:httpcore:4.4.9"
-	implementation "org.apache.httpcomponents:httpclient:4.5.5"
+	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
 
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.1.0'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.1.0'
@@ -35,80 +34,75 @@ test {
 	testLogging {
 		exceptionFormat 'full'
 		events "PASSED", "STARTED", "FAILED", "SKIPPED"
-		// Set to true if you want to see output from tests
 		showStandardStreams false
 	}
 }
 
 // --------------------------------------------------------------
-// Tasks for publishing into Maven Central
-
-task sourcesJar(type: Jar) {
-	classifier = 'sources'
+// Define sourceJar and javadocJar tasks
+task sourceJar(type: Jar) {
 	from sourceSets.main.allSource
+	archiveClassifier.set('sources')
 }
 
 task javadocJar(type: Jar) {
-	classifier = 'javadoc'
 	from javadoc
+	archiveClassifier.set('javadoc')
 }
 
-artifacts {
-	archives jar
-	archives sourcesJar
-	archives javadocJar
-}
+// --------------------------------------------------------------
+// Tasks for publishing into Maven Central (now using maven-publish)
 
-def doUploadArchives = project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')
-if (doUploadArchives) {
-	group = "com.ecwid.consul"
-	archivesBaseName = "consul-api"
-	version = "1.4.5"
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
 
-	signing {
-		sign configurations.archives
-	}
+			artifact sourceJar
+			artifact javadocJar
 
-	uploadArchives {
-		repositories {
-			mavenDeployer {beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+			pom {
+				name = 'Ecwid Consul API'
+				description = 'Java client for Consul HTTP API (http://consul.io)'
+				url = 'https://github.com/Ecwid/consul-api'
 
-				repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-					authentication(userName: sonatypeUsername, password: sonatypePassword)
+				groupId = 'com.ecwid.consul'   // Replace with your group ID
+				artifactId = 'consul-api'            // Replace with your artifact ID
+				version = '1.4.6'           // Set your desired version here
+
+				scm {
+					connection = 'scm:git:git@github.com:Ecwid/consul-api.git'
+					developerConnection = 'scm:git:git@github.com:Ecwid/consul-api.git'
+					url = 'https://github.com/Ecwid/consul-api.git'
 				}
 
-				snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-					authentication(userName: sonatypeUsername, password: sonatypePassword)
+				licenses {
+					license {
+						name = 'The Apache License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+					}
 				}
 
-				pom.project {
-					name 'Ecwid Consul API'
-					packaging 'jar'
-					description 'Java client for Consul HTTP API (http://consul.io)'
-					url 'https://github.com/Ecwid/consul-api'
-
-					scm {
-						connection 'scm:git:git@github.com:Ecwid/consul-api.git'
-						developerConnection 'scm:git:git@github.com:Ecwid/consul-api.git'
-						url 'https://github.com/Ecwid/consul-api.git'
-					}
-
-					licenses {
-						license {
-							name 'The Apache License, Version 2.0'
-							url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-						}
-					}
-
-					developers {
-						developer {
-							id 'vgv'
-							name 'Vasily Vasilkov'
-							email 'vgv@ecwid.com'
-						}
+				developers {
+					developer {
+						id = 'vgv'
+						name = 'Vasily Vasilkov'
+						email = 'vgv@ecwid.com'
 					}
 				}
 			}
 		}
 	}
+	repositories {
+		maven {
+			url = version.endsWith("SNAPSHOT") ?
+				"https://repository.mapsmessaging.io:8081/repository/maps_test_libs/" :
+				"https://repository.mapsmessaging.io:8081/repository/maps_test_libs/"
+			allowInsecureProtocol = true
+			credentials {
+				username = project.findProperty("repositoryUsername")
+				password = project.findProperty("repositoryPassword")			}
+		}
+	}
 }
+
